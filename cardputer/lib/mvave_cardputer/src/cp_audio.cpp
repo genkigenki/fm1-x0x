@@ -4,6 +4,7 @@
 #include <M5Cardputer.h>
 #include <driver/i2s_std.h>
 #include <esp_timer.h>
+#include <math.h>
 #include "cp_audio.h"
 
 static i2s_chan_handle_t tx;
@@ -14,6 +15,8 @@ static volatile uint32_t cpu_q8, peak, xruns, last_us, blocks;
 static volatile int running;
 static int32_t blk[2u * CP_AUDIO_MAX_BLOCK];
 static int16_t pcm[2u * CP_AUDIO_MAX_BLOCK];
+static volatile uint32_t tone_left, out_peak;
+static uint32_t tone_ph;
 
 static void audio_task(void *)
 {
@@ -30,7 +33,20 @@ static void audio_task(void *)
         if (us > budget)
             xruns++;
         blocks++;
+        if (tone_left) {                                // the console's test tone, over whatever was rendered
+            for (uint32_t i = 0; i < block; i++) {
+                int32_t v = (int32_t)(sinf((float)tone_ph * (6.2831853f * 1000.0f) / (float)rate) * 2097152.0f);
+                blk[2u * i] = blk[2u * i + 1u] = v;
+                tone_ph = (tone_ph + 1u) % rate;
+            }
+            tone_left = tone_left > block ? tone_left - block : 0u;
+        }
         cp_audio_convert(blk, pcm, block, trim);
+        for (uint32_t i = 0; i < 2u * block; i += 2u) {   // the level that reaches the speaker
+            uint32_t a = (uint32_t)(pcm[i] < 0 ? -pcm[i] : pcm[i]);
+            if (a > out_peak)
+                out_peak = a;
+        }
         size_t done = 0;
         i2s_channel_write(tx, pcm, block * 4u, &done, portMAX_DELAY);
     }
@@ -81,7 +97,8 @@ extern "C" void cp_audio_stop(void)
     tx = nullptr;
 }
 
-extern "C" void cp_audio_set_trim_q12(uint32_t q12) { trim = q12 > 8192u ? 8192u : q12; }
+extern "C" void cp_audio_set_trim_q12(uint32_t q12) { trim = q12 > 65536u ? 65536u : q12; }   /* up to x16, as M5Unified drives this speaker */
+extern "C" uint32_t cp_audio_trim_q12(void) { return trim; }
 extern "C" uint32_t cp_audio_cpu_pct(void) { return (cpu_q8 * 100u) >> 8; }
 extern "C" uint32_t cp_audio_peak_pct(void)
 {
@@ -92,3 +109,11 @@ extern "C" uint32_t cp_audio_peak_pct(void)
 extern "C" uint32_t cp_audio_xruns(void) { return xruns; }
 extern "C" uint32_t cp_audio_last_us(void) { return last_us; }
 extern "C" uint32_t cp_audio_blocks(void) { return blocks; }
+
+extern "C" void cp_audio_test_tone(uint32_t ms) { tone_left = ms * (rate ? rate : 44100u) / 1000u; }
+extern "C" uint32_t cp_audio_out_peak(void)
+{
+    uint32_t p = out_peak;
+    out_peak = 0;
+    return p;
+}

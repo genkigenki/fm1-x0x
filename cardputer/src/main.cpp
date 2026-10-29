@@ -18,13 +18,14 @@ void x0x_boot(void);
 int x0x_tick(uint32_t now_ms);
 void x0x_render(int32_t *o, uint32_t n);
 void x0x_load(uint32_t pct, uint32_t n);
+void x0x_console(void);
 }
 
 #ifndef X0X_CP_SCREEN
 #define X0X_CP_SCREEN CP_SCREEN_SQUEEZE
 #endif
 #ifndef X0X_CP_TRIM_Q12
-#define X0X_CP_TRIM_Q12 4096u
+#define X0X_CP_TRIM_Q12 32768u                   // x8: the FM-1 is line level, this speaker needs gain (M5Unified: x16); console: gain N
 #endif
 #define BLOCK 256u
 #define RATE 44100u
@@ -44,6 +45,7 @@ void setup()
     M5Cardputer.begin(cfg, true);
     Serial.begin(115200);
     cp_console_init();
+    x0x_console();
     safe_mode = cp_bootguard_begin() >= 2;          // two boots that never got healthy: no audio this time
     cp_display_init(X0X_CP_SCREEN, CP_STRIP_H);
     cp_overlay_init(KNOBS, 7);

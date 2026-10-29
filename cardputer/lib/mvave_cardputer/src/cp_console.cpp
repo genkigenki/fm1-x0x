@@ -4,6 +4,7 @@
 #include <M5Cardputer.h>
 #include <esp_heap_caps.h>
 #include <stdarg.h>
+#include <stdlib.h>
 #include <string.h>
 #include "cp_audio.h"
 #include "cp_console.h"
@@ -62,6 +63,25 @@ static void cmd_shot(const char *)
     cp_console_printf("shot: not available on the device (no framebuffer); use the firmware's host simulator\n");
 }
 
+static void cmd_tone(const char *)
+{
+    cp_audio_test_tone(1000);
+    cp_console_printf("tone: 1 kHz for 1 s\n");
+}
+
+static void cmd_level(const char *)
+{
+    cp_console_printf("level %lu of 32767 (since the last call)\n", (unsigned long)cp_audio_out_peak());
+}
+
+static void cmd_gain(const char *args)
+{
+    int g = atoi(args);
+    if (g >= 1 && g <= 16)
+        cp_audio_set_trim_q12((uint32_t)g * 4096u);
+    cp_console_printf("gain x%lu (gain 1..16)\n", (unsigned long)(cp_audio_trim_q12() / 4096u));
+}
+
 extern "C" int cp_console_register(const char *name, cp_cmd_fn fn)
 {
     if (ncmd >= 16u)
@@ -79,6 +99,9 @@ extern "C" void cp_console_init(void)
         cp_console_register("heap", cmd_heap);
         cp_console_register("keys", cmd_keys);
         cp_console_register("shot", cmd_shot);
+        cp_console_register("tone", cmd_tone);
+        cp_console_register("level", cmd_level);
+        cp_console_register("gain", cmd_gain);
     }
 }
 
@@ -93,9 +116,9 @@ extern "C" void cp_console_line(const char *l)
         }
     }
     if (*l)
-        cp_console_printf("? %s (cp heap keys shot", l);
+        cp_console_printf("? %s (cp heap keys shot tone level gain", l);
     if (*l) {
-        for (i = 4; i < ncmd; i++)
+        for (i = 7; i < ncmd; i++)
             cp_console_printf(" %s", cmds[i].name);
         cp_console_printf(")\n");
     }

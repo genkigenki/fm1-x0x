@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 M. Geisler (genkigenki) */
-/* mvave-to-cardputer: a line console on the USB serial port. Built-ins: cp (status), heap, keys (the matrix once),
+/* mvave-to-cardputer: a line console on the USB serial port. Built-ins: cp (status), heap, keys (the matrix once), tone (1 kHz, 1 s), level (the output peak),
  * shot (the framebuffer as base64 between "SHOT 240 135" and "END", decoded by tools/screenshot.py).
  * Output never blocks: with nobody reading the port, it is dropped. */
 #pragma once

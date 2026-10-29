@@ -75,3 +75,15 @@ void x0x_render(int32_t *o, uint32_t n)
     engine_volume(o, n);
 }
 void x0x_load(uint32_t pct, uint32_t n) { engine_load(pct, n); }
+
+/* the console's x0x command: what the app sees and does (bring-up) */
+#include "cp_console.h"
+#include "cp_keys.h"
+static void cmd_x0x(const char *args)
+{
+    (void)args;
+    cp_console_printf("playing %d bpm %d keys %07lx buttons %04lx master %lu cpu %lu%%\n", (int)seq.playing,
+                      (int)seq.bpm, (unsigned long)plat_keys(), (unsigned long)plat_buttons(),
+                      (unsigned long)plat_master(), (unsigned long)plat_cpu_pct());
+}
+void x0x_console(void) { cp_console_register("x0x", cmd_x0x); }

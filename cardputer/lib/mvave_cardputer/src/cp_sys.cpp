@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <M5Cardputer.h>
 #include <esp_timer.h>
+#include <esp_system.h>
 #include <esp_heap_caps.h>
 #include <nvs.h>
 #include <nvs_flash.h>
@@ -36,9 +37,16 @@ extern "C" int cp_bootguard_begin(void)
 {
     nvs_handle_t h;
     uint8_t n = 0;
+    esp_reset_reason_t why = esp_reset_reason();
+    /* only a crash counts: a power-on, a reset button, a USB reset from a flasher or the Launcher's restart is
+     * not a failed boot (a flasher resets the chip many times in a row) */
+    int crash = why == ESP_RST_PANIC || why == ESP_RST_INT_WDT || why == ESP_RST_TASK_WDT || why == ESP_RST_WDT ||
+                why == ESP_RST_BROWNOUT;
     if (!guard_open(&h))
         return 0;
     nvs_get_u8(h, "boots", &n);
+    if (!crash)
+        n = 0;
     nvs_set_u8(h, "boots", (uint8_t)(n < 255 ? n + 1 : 255));
     nvs_commit(h);
     nvs_close(h);

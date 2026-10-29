@@ -14,12 +14,15 @@ typedef void (*cp_render_fn)(int32_t *out, uint32_t frames);
 
 int cp_audio_start(cp_render_fn render, uint32_t block_frames, uint32_t rate_hz);   /* 0 ok */
 void cp_audio_stop(void);
-void cp_audio_set_trim_q12(uint32_t q12);      /* 4096 = 1.0 (default) */
+void cp_audio_set_trim_q12(uint32_t q12);      /* 4096 = 1.0 (default), up to 65536 = x16 */
+uint32_t cp_audio_trim_q12(void);
 uint32_t cp_audio_cpu_pct(void);               /* smoothed */
 uint32_t cp_audio_peak_pct(void);              /* the highest since the last call */
 uint32_t cp_audio_xruns(void);                 /* renders longer than their block */
 uint32_t cp_audio_last_us(void);
 uint32_t cp_audio_blocks(void);
+void cp_audio_test_tone(uint32_t ms);           /* a 1 kHz tone at -12 dBFS over the render (the console's tone) */
+uint32_t cp_audio_out_peak(void);              /* the loudest 16-bit sample sent to the speaker since the last call */
 
 /* pure: in = interleaved stereo int32 (+-8,388,608), out = interleaved stereo int16 (the mono mix twice) */
 void cp_audio_convert(const int32_t *in, int16_t *out, uint32_t frames, uint32_t trim_q12);
