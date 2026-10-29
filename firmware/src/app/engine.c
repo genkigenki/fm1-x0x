@@ -32,7 +32,9 @@ static bass303_t b303[NBASS] POOL;
 static breaks_t brk POOL;
 static fxbus_t fx POOL;
 static master_t mst;
+#ifndef DLY_LEN                         /* a smaller board may pass a shorter tape delay (the Cardputer: 1 s) */
 #define DLY_LEN 88200
+#endif
 static int16_t dly_buf[DLY_LEN] POOL;
 static volatile uint8_t brk_hold;      /* main loop is rewriting the break loops: ISR leaves it alone */
 static motion_t mot;

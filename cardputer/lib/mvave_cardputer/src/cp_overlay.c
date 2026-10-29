@@ -44,13 +44,7 @@ void cp_overlay_leds(uint32_t keys_lit, uint32_t keys_dim, uint32_t buttons_lit,
 
 void cp_overlay_knob(int active) { ov.knob = active >= 0 && (uint32_t)active < ov.n_enc ? active : -1; }
 
-static void rect(uint16_t *fb, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
-{
-    uint32_t i, j;
-    for (j = y; j < y + h && j < CP_LCD_H; j++)
-        for (i = x; i < x + w && i < CP_LCD_W; i++)
-            fb[j * CP_LCD_W + i] = c;
-}
+static void rect(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c) { cp_display_fill_rect(x, y, w, h, c); }
 
 static uint16_t key_colour(uint32_t k)
 {
@@ -64,7 +58,7 @@ static uint16_t btn_colour(uint32_t b)
     return b == CP_OV_PLAY && ov.play_red ? CP_OV_REC : CP_OV_BTN;
 }
 
-static void glyph(uint16_t *fb, uint32_t x, uint32_t y, char c)
+static void glyph(uint32_t x, uint32_t y, char c)
 {
     uint32_t i, r, b;
     for (i = 0; i < sizeof FONT / sizeof FONT[0]; i++)
@@ -72,48 +66,37 @@ static void glyph(uint16_t *fb, uint32_t x, uint32_t y, char c)
             for (r = 0; r < 7u; r++)
                 for (b = 0; b < 5u; b++)
                     if ((FONT[i].row[r] >> (4u - b)) & 1u)
-                        fb[(y + r) * CP_LCD_W + x + b] = CP_OV_LIT;
+                        rect(x + b, y + r, 1, 1, CP_OV_LIT);
 }
 
 void cp_overlay_draw(void)
 {
-    uint16_t *fb = cp_fb();
     uint32_t k, top = cp_fb_ui_h();
     int s = cp_display_strategy();
-    if (!fb)
-        return;
     if (ov.drawn && ov.d_keys == ov.keys && ov.d_dim == ov.dim && ov.d_btn == ov.btn && ov.d_play == ov.play_red &&
         ov.d_knob == ov.knob && ov.d_strategy == s)
         return;
     if (s == CP_SCREEN_SHRINK) {                    /* the side panels: 52 px left and right of the square */
-        rect(fb, 0, 0, 52, CP_LCD_H, 0);
-        rect(fb, 188, 0, 52, CP_LCD_H, 0);
+        rect(0, 0, 52, CP_LCD_H, 0);
+        rect(188, 0, 52, CP_LCD_H, 0);
         for (k = 0; k < CP_OV_NKEYS; k++)
-            rect(fb, BLACK_KEYS[k] ? 22u : 0u, 5u * k, BLACK_KEYS[k] ? 30u : 51u, 4, key_colour(k));
+            rect(BLACK_KEYS[k] ? 22u : 0u, 5u * k, BLACK_KEYS[k] ? 30u : 51u, 4, key_colour(k));
         for (k = 0; k < CP_OV_NBTN; k++)
-            rect(fb, 190, 9u * k, 48, 7, btn_colour(k));
+            rect(190, 9u * k, 48, 7, btn_colour(k));
         if (ov.knob >= 0)
-            glyph(fb, 212, 127, ov.letter[ov.knob]);
-        cp_display_mark_dirty(0, CP_LCD_H - 1u);
+            glyph(212, 127, ov.letter[ov.knob]);
     } else {
         if (top >= CP_LCD_H)
             return;
-        rect(fb, 0, top, CP_LCD_W, CP_LCD_H - top, 0);
+        rect(0, top, CP_LCD_W, CP_LCD_H - top, 0);
         for (k = 0; k < CP_OV_NKEYS; k++)            /* rows top+1 .. 134 */
-            rect(fb, 7u * k, top + 1u, BLACK_KEYS[k] ? 4u : 6u, CP_LCD_H - top - 1u, key_colour(k));
+            rect(7u * k, top + 1u, BLACK_KEYS[k] ? 4u : 6u, CP_LCD_H - top - 1u, key_colour(k));
         for (k = 0; k < CP_OV_NBTN; k++)
-            rect(fb, 190u + 3u * k, top + 1u, 2, CP_LCD_H - top - 1u, btn_colour(k));
+            rect(190u + 3u * k, top + 1u, 2, CP_LCD_H - top - 1u, btn_colour(k));
         if (ov.knob >= 0 && CP_LCD_H - top >= 7u)
-            glyph(fb, 234, CP_LCD_H - 7u, ov.letter[ov.knob]);
-        cp_display_mark_dirty(top, CP_LCD_H - 1u);
+            glyph(234, CP_LCD_H - 7u, ov.letter[ov.knob]);
     }
     ov.drawn = 1;
     ov.d_keys = ov.keys, ov.d_dim = ov.dim, ov.d_btn = ov.btn, ov.d_play = ov.play_red, ov.d_knob = ov.knob;
     ov.d_strategy = s;
-}
-
-uint16_t cp_overlay_pixel(uint32_t x, uint32_t y)
-{
-    uint16_t *fb = cp_fb();
-    return fb && x < CP_LCD_W && y < CP_LCD_H ? fb[y * CP_LCD_W + x] : 0u;
 }

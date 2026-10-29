@@ -57,34 +57,9 @@ static void cmd_keys(const char *)
 
 static void cmd_shot(const char *)
 {
-    static const char B64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    const uint8_t *p = (const uint8_t *)cp_fb();
-    uint32_t n = CP_LCD_W * CP_LCD_H * 2u, i, col = 0;
-    char out[80];
-    if (!p) {
-        cp_console_printf("shot: no framebuffer\n");
-        return;
-    }
-    Serial.setTxTimeoutMs(200);                       // a screenshot is asked for: the PC is reading
-    cp_console_printf("SHOT %u %u\n", (unsigned)CP_LCD_W, (unsigned)CP_LCD_H);
-    for (i = 0; i < n; i += 3) {
-        uint32_t v = (uint32_t)p[i] << 16 | (i + 1 < n ? (uint32_t)p[i + 1] << 8 : 0u) | (i + 2 < n ? p[i + 2] : 0u);
-        out[col++] = B64[v >> 18 & 63];
-        out[col++] = B64[v >> 12 & 63];
-        out[col++] = i + 1 < n ? B64[v >> 6 & 63] : '=';
-        out[col++] = i + 2 < n ? B64[v & 63] : '=';
-        if (col >= 76) {
-            out[col++] = '\n';
-            Serial.write((const uint8_t *)out, col);
-            col = 0;
-        }
-    }
-    if (col) {
-        out[col++] = '\n';
-        Serial.write((const uint8_t *)out, col);
-    }
-    cp_console_printf("END\n");
-    Serial.setTxTimeoutMs(0);
+    /* the display keeps no framebuffer (its RAM is the firmware's) and the panel cannot be read back: screenshots
+     * of a port come from the firmware's own host simulator, squeezed the same way (docs/04-screen.md) */
+    cp_console_printf("shot: not available on the device (no framebuffer); use the firmware's host simulator\n");
 }
 
 extern "C" int cp_console_register(const char *name, cp_cmd_fn fn)

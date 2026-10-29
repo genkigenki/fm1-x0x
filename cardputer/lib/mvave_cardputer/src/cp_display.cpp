@@ -3,13 +3,13 @@
 #include "cp_display.h"
 #include "cp_scale.h"
 #include <M5Cardputer.h>
-#include <esp_heap_caps.h>
 
-static uint16_t *fb;
+static uint16_t band[CP_LCD_W * CP_BAND_ROWS];
 static cp_ymap_t ymap[CP_LCD_H];
 static uint8_t xmap[CP_LCD_H];
+static uint8_t cols[CP_LCD_W];
 static int strategy;
-static uint32_t ui_h, dirty0 = 1, dirty1, crop_dy, sync_us;
+static uint32_t ui_h, crop_dy, blit_us;
 
 extern "C" __attribute__((weak)) void cp_overlay_draw(void) {}
 
@@ -27,45 +27,65 @@ static void build_maps(void)
 
 extern "C" int cp_display_init(int s, uint32_t strip_h)
 {
-    if (!fb)
-        fb = (uint16_t *)heap_caps_calloc(CP_LCD_W * CP_LCD_H, 2, MALLOC_CAP_8BIT);
-    if (!fb)
-        return -1;
     strategy = s;
     ui_h = s == CP_SCREEN_SHRINK ? CP_LCD_H : CP_LCD_H - (strip_h < CP_LCD_H ? strip_h : 0u);
     build_maps();
     M5.Display.setRotation(1);
     M5.Display.fillScreen(TFT_BLACK);
-    cp_display_mark_dirty(0, CP_LCD_H - 1u);
     return 0;
 }
 
-extern "C" void cp_display_mark_dirty(uint32_t y0, uint32_t y1)
+static void push(uint32_t x, uint32_t t0, uint32_t w, uint32_t rows)
 {
-    if (y1 >= CP_LCD_H)
-        y1 = CP_LCD_H - 1u;
-    if (dirty0 > dirty1) {
-        dirty0 = y0, dirty1 = y1;
-        return;
-    }
-    if (y0 < dirty0)
-        dirty0 = y0;
-    if (y1 > dirty1)
-        dirty1 = y1;
+    M5.Display.pushImage((int32_t)x, (int32_t)t0, (int32_t)w, (int32_t)rows, (const lgfx::rgb565_t *)band);
 }
 
 static void draw(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *px, uint16_t c, int swap)
 {
-    uint32_t y0 = 0, y1 = 0, n;
-    if (!fb)
+    uint32_t t0 = micros(), x0, n, t, rows = 0, band_t0 = 0;
+    const uint8_t *cl = 0;
+    if (x >= CP_SRC_W || y >= CP_SRC_H || !w || !h)
         return;
-    if (strategy == CP_SCREEN_SHRINK)
-        n = cp_scale_blit_xy(fb, CP_LCD_W, ui_h, ymap, xmap, CP_LCD_H, (CP_LCD_W - CP_LCD_H) / 2u, x, y, w, h, px,
-                             c, swap, &y0, &y1);
-    else
-        n = cp_scale_blit(fb, CP_LCD_W, ui_h, ymap, x, y, w, h, px, c, swap, &y0, &y1);
-    if (n)
-        cp_display_mark_dirty(y0, y1);
+    if (strategy == CP_SCREEN_SHRINK) {               // the panel columns whose source column is in the blit
+        uint32_t i, a = CP_LCD_H, b = 0, xe = x + w > CP_SRC_W ? CP_SRC_W : x + w;
+        for (i = 0; i < CP_LCD_H; i++)
+            if (xmap[i] >= x && xmap[i] < xe) {
+                if (a == CP_LCD_H)
+                    a = i;
+                b = i;
+            }
+        if (a == CP_LCD_H)
+            return;
+        x0 = (CP_LCD_W - CP_LCD_H) / 2u + a;
+        n = b - a + 1u;
+        for (i = 0; i < n; i++)
+            cols[i] = xmap[a + i];
+        cl = cols;
+    } else {
+        x0 = x;
+        n = (x + w > CP_SRC_W ? CP_SRC_W - x : w);
+    }
+    M5.Display.startWrite();
+    for (t = 0; t < ui_h; t++) {
+        uint16_t *row = band + rows * n;
+        if (!cp_scale_row(row, &ymap[t], x, y, w, h, px, c, swap, cl, n)) {
+            if (rows) {                                // a gap: push what the band holds
+                push(x0, band_t0, n, rows);
+                rows = 0;
+            }
+            continue;
+        }
+        if (!rows)
+            band_t0 = t;
+        if (++rows == CP_BAND_ROWS) {
+            push(x0, band_t0, n, rows);
+            rows = 0;
+        }
+    }
+    if (rows)
+        push(x0, band_t0, n, rows);
+    M5.Display.endWrite();
+    blit_us = micros() - t0;
 }
 
 extern "C" void cp_lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c) { draw(x, y, w, h, 0, c, 0); }
@@ -73,25 +93,16 @@ extern "C" void cp_lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, cons
 {
     draw(x, y, w, h, px, 0, CP_BLIT_SWAP);
 }
+extern "C" void cp_lcd_sync(void) { cp_overlay_draw(); }
 
-extern "C" void cp_lcd_sync(void)
+extern "C" void cp_display_fill_rect(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c)
 {
-    uint32_t t0 = micros();
-    if (!fb)
-        return;
-    cp_overlay_draw();
-    if (dirty0 <= dirty1) {
-        M5.Display.pushImage(0, (int32_t)dirty0, CP_LCD_W, (int32_t)(dirty1 - dirty0 + 1u),
-                             (const lgfx::rgb565_t *)(fb + dirty0 * CP_LCD_W));
-        dirty0 = 1, dirty1 = 0;
-    }
-    sync_us = micros() - t0;
+    M5.Display.fillRect((int32_t)x, (int32_t)y, (int32_t)w, (int32_t)h, (uint16_t)c);
 }
 
-extern "C" uint16_t *cp_fb(void) { return fb; }
 extern "C" uint32_t cp_fb_ui_h(void) { return ui_h; }
 extern "C" int cp_display_strategy(void) { return strategy; }
-extern "C" uint32_t cp_display_last_sync_us(void) { return sync_us; }
+extern "C" uint32_t cp_display_last_blit_us(void) { return blit_us; }
 extern "C" void cp_display_crop_dy(int32_t dy)
 {
     int32_t max = (int32_t)(CP_SRC_H - ui_h);

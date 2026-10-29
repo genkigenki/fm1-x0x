@@ -1233,10 +1233,16 @@ static void help_tick(uint32_t btn, uint32_t keys)
  * two quiet moments (UNDO_QUIET ms with nothing touched or held), or a whole recording pass. */
 #define UNDO_QUIET 400u
 #define UNDO_OFF __builtin_offsetof(project_t, sound)
+#ifndef X0X_UNDO
+#define X0X_UNDO 1                      /* 0: a board without the RAM for it (the Cardputer: 52 KB) */
+#endif
+#if X0X_UNDO
 static undo_t undo X0X_POOL;
 static uint8_t undo_shadow[sizeof(project_t) - UNDO_OFF] X0X_POOL;
+#endif
 static uint8_t undo_lanes;             /* the last undo / redo touched the knob motion */
 
+#if X0X_UNDO
 static void undo_start(void) { undo_init(&undo, (uint8_t *)&proj + UNDO_OFF, undo_shadow, sizeof undo_shadow); }
 
 static void undo_tick(void)
@@ -1246,6 +1252,10 @@ static void undo_tick(void)
         return;
     undo_commit(&undo);
 }
+#else
+static void undo_start(void) {}
+static void undo_tick(void) {}
+#endif
 
 /* a run of the project changed under the engine: the sound's pots go to the engine again */
 static void undo_changed(uint32_t off, uint32_t len)
@@ -1298,6 +1308,10 @@ static void do_undo(int redo)
 {
     uint32_t lo, hi;
     char t[24];
+#if !X0X_UNDO
+    (void)lo, (void)hi, (void)t;
+    say("NO UNDO ON THIS BOARD", 0);
+#else
     undo_commit(&undo);                              /* what was just done is a step too */
     undo_lanes = 0;
     if (!(redo ? undo_redo : undo_undo)(&undo, undo_changed, &lo, &hi)) {
@@ -1314,6 +1328,7 @@ static void do_undo(int redo)
     mark_dirty();
     undo_name(lo, hi, t);
     say(redo ? "REDO " : "UNDO ", t);
+#endif
 }
 
 /* SAVE while playing waits for the stop: writing the flash stops the audio (the code and the samples

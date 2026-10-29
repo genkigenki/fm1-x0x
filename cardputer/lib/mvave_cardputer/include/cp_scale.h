@@ -19,6 +19,12 @@ void cp_ymap_crop(cp_ymap_t *map, uint32_t dst_h, uint32_t dy);       /* row t s
 void cp_xmap_build(uint8_t *xmap, uint32_t src_w, uint32_t dst_w);     /* nearest, centres */
 uint16_t cp_blend565(uint16_t a, uint16_t b, uint32_t w1);
 
+/* One target row (its map entry m) of a source rectangle into o[0..ncols-1]: o[i] shows source column
+ * cols[i] (cols NULL: column x + i). Columns outside the rectangle are left as they are. 1 = the row touches the
+ * rectangle and was written, 0 = it does not. The building block of the framebuffer-less display. */
+uint32_t cp_scale_row(uint16_t *o, const cp_ymap_t *m, uint32_t x, uint32_t y, uint32_t w, uint32_t h,
+                      const uint16_t *px, uint16_t c, int swap, const uint8_t *cols, uint32_t ncols);
+
 /* Draw a source rectangle (x, y, w, h in source coordinates; px row stride w, or px NULL: fill with c) into the
  * target framebuffer fb (fb_w pixels a row, dst_h target rows). Clamped to the 240 x 240 source and the target.
  * Returns the target rows written; *y0..*y1 the dirty range (untouched when 0 rows). */

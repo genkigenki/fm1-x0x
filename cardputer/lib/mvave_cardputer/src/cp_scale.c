@@ -63,40 +63,37 @@ static inline uint16_t src_px(const uint16_t *row, uint32_t i, uint16_t c, int s
     return swap ? (uint16_t)((v >> 8) | (v << 8)) : v;
 }
 
-static uint32_t blit(uint16_t *fb, uint32_t fb_w, uint32_t dst_h, const cp_ymap_t *map, const uint8_t *xmap,
-                     uint32_t dst_w, uint32_t x_off, uint32_t x, uint32_t y, uint32_t w, uint32_t h,
-                     const uint16_t *px, uint16_t c, int swap, uint32_t *y0, uint32_t *y1)
+uint32_t cp_scale_row(uint16_t *o, const cp_ymap_t *m, uint32_t x, uint32_t y, uint32_t w, uint32_t h,
+                      const uint16_t *px, uint16_t c, int swap, const uint8_t *cols, uint32_t ncols)
 {
-    uint32_t stride = w, cw, ch, t, rows = 0;
+    uint32_t stride = w, cw, ch, r0 = m->r0, r1 = m->r1, w1 = m->w1;
+    int in0, in1;
+    const uint16_t *a, *b;
     if (x >= CP_SRC_EXTENT || y >= CP_SRC_EXTENT || !w || !h)
         return 0;
     cw = x + w > CP_SRC_EXTENT ? CP_SRC_EXTENT - x : w;
     ch = y + h > CP_SRC_EXTENT ? CP_SRC_EXTENT - y : h;
-    for (t = 0; t < dst_h; t++) {
-        uint32_t r0 = map[t].r0, r1 = map[t].r1, w1 = map[t].w1;
-        int in0 = r0 >= y && r0 < y + ch, in1 = r1 >= y && r1 < y + ch;
-        const uint16_t *a, *b;
-        uint16_t *out = fb + t * fb_w;
-        if (!in0 && !in1)
-            continue;
-        if (!in0 || !in1) {               /* one source row inside this rectangle: that row (nearest) */
-            r0 = r1 = in0 ? r0 : r1;
-            w1 = 0;
+    in0 = r0 >= y && r0 < y + ch;
+    in1 = r1 >= y && r1 < y + ch;
+    if (!in0 && !in1)
+        return 0;
+    if (!in0 || !in1) {                   /* one source row inside this rectangle: that row (nearest) */
+        r0 = r1 = in0 ? r0 : r1;
+        w1 = 0;
+    }
+    a = px ? px + (r0 - y) * stride : 0;
+    b = px ? px + (r1 - y) * stride : 0;
+    if (cols) {
+        uint32_t i;
+        for (i = 0; i < ncols; i++) {
+            uint32_t s = cols[i];
+            if (s < x || s >= x + cw)
+                continue;
+            o[i] = w1 ? cp_blend565(src_px(a, s - x, c, swap), src_px(b, s - x, c, swap), w1) : src_px(a, s - x, c, swap);
         }
-        a = px ? px + (r0 - y) * stride : 0;
-        b = px ? px + (r1 - y) * stride : 0;
-        if (xmap) {
-            uint32_t i;
-            for (i = 0; i < dst_w && x_off + i < fb_w; i++) {
-                uint32_t s = xmap[i];
-                if (s < x || s >= x + cw)
-                    continue;
-                out[x_off + i] = w1 ? cp_blend565(src_px(a, s - x, c, swap), src_px(b, s - x, c, swap), w1)
-                                    : src_px(a, s - x, c, swap);
-            }
-        } else {
-            uint32_t i, n = x + cw > fb_w ? (x < fb_w ? fb_w - x : 0u) : cw;
-            uint16_t *o = out + x;
+    } else {
+        {
+            uint32_t i, n = ncols < cw ? ncols : cw;
             if (!px) {                                        /* fill: the colour blends with itself */
                 for (i = 0; i < n; i++)
                     o[i] = c;
@@ -122,6 +119,24 @@ static uint32_t blit(uint16_t *fb, uint32_t fb_w, uint32_t dst_h, const cp_ymap_
                 }
             }
         }
+    }
+    return 1;
+}
+
+static uint32_t blit(uint16_t *fb, uint32_t fb_w, uint32_t dst_h, const cp_ymap_t *map, const uint8_t *xmap,
+                     uint32_t dst_w, uint32_t x_off, uint32_t x, uint32_t y, uint32_t w, uint32_t h,
+                     const uint16_t *px, uint16_t c, int swap, uint32_t *y0, uint32_t *y1)
+{
+    uint32_t t, rows = 0;
+    for (t = 0; t < dst_h; t++) {
+        uint32_t ok;
+        if (xmap)
+            ok = cp_scale_row(fb + t * fb_w + x_off, &map[t], x, y, w, h, px, c, swap, xmap,
+                              x_off < fb_w ? (dst_w < fb_w - x_off ? dst_w : fb_w - x_off) : 0u);
+        else
+            ok = x < fb_w ? cp_scale_row(fb + t * fb_w + x, &map[t], x, y, w, h, px, c, swap, 0, fb_w - x) : 0u;
+        if (!ok)
+            continue;
         if (!rows || t < *y0)
             *y0 = t;
         if (!rows || t > *y1)

@@ -20,8 +20,7 @@ extern "C" {
 void cp_overlay_init(const char *const *enc_names, uint32_t n_enc);   /* a knob shows its name's last digit, else its first letter */
 void cp_overlay_leds(uint32_t keys_lit, uint32_t keys_dim, uint32_t buttons_lit, int play_red);
 void cp_overlay_knob(int active);      /* -1: none */
-void cp_overlay_draw(void);            /* into cp_fb(); only when something changed */
-uint16_t cp_overlay_pixel(uint32_t x, uint32_t y);
+void cp_overlay_draw(void);            /* through cp_display_fill_rect; only when something changed */
 
 #ifdef __cplusplus
 }
