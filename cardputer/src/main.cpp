@@ -32,6 +32,14 @@ void x0x_console(void);
 
 static const char *const KNOBS[7] = {"SELECT", "ALGORITHM", "PRESETS", "KNOB 1", "KNOB 2", "KNOB 3", "KNOB 4"};
 static int safe_mode;
+static uint32_t frame_sum, frames, frame_max, loops;
+
+static void cmd_perf(const char *)
+{
+    cp_console_printf("ui frames %lu avg %lu us max %lu us, loops %lu (since the last perf)\n", (unsigned long)frames,
+                      (unsigned long)(frames ? frame_sum / frames : 0), (unsigned long)frame_max, (unsigned long)loops);
+    frame_sum = frames = frame_max = loops = 0;
+}
 
 static void render(int32_t *o, uint32_t n)
 {
@@ -46,6 +54,7 @@ void setup()
     Serial.begin(115200);
     cp_console_init();
     x0x_console();
+    cp_console_register("perf", cmd_perf);
     safe_mode = cp_bootguard_begin() >= 2;          // two boots that never got healthy: no audio this time
     cp_display_init(X0X_CP_SCREEN, CP_STRIP_H);
     cp_overlay_init(KNOBS, 7);
@@ -62,11 +71,18 @@ void loop()
 {
     static uint32_t last_ms, healthy;
     uint32_t now = cp_ms();
+    loops++;
     cp_keys_scan();
     if (now != last_ms) {
         last_ms = now;
-        if (x0x_tick(now))
+        uint32_t t0 = micros();
+        if (x0x_tick(now)) {
             cp_lcd_sync();
+            uint32_t us = micros() - t0;                // one UI frame, drawing included (console: perf)
+            frame_sum += us, frames++;
+            if (us > frame_max)
+                frame_max = us;
+        }
     }
     cp_console_poll();
     if (!healthy && now > 10000u) {
