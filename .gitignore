@@ -2,3 +2,5 @@ build/
 .DS_Store
 __pycache__/
 *.o
+cardputer/.pio/
+cardputer/x0x-cardputer*.bin

@@ -1,0 +1,10 @@
+{
+  "name": "mvave_cardputer",
+  "version": "0.1.0",
+  "description": "Cardputer board layer for M-Vave FM-1 / SMK-37 firmware ports (mvave-to-cardputer)",
+  "license": "GPL-3.0-only",
+  "frameworks": "arduino",
+  "platforms": "espressif32",
+  "dependencies": { "m5stack/M5Cardputer": "*" },
+  "build": { "srcFilter": ["+<*>", "-<main.cpp>"], "includeDir": "include" }
+}
