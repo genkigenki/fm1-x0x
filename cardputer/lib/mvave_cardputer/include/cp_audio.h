@@ -6,6 +6,7 @@
  * It measures how long each render takes against the block's time: cpu %, peak %, xruns. */
 #pragma once
 #include <stdint.h>
+#include "cp_audio_fx.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -23,6 +24,8 @@ uint32_t cp_audio_last_us(void);
 uint32_t cp_audio_blocks(void);
 void cp_audio_test_tone(uint32_t ms);           /* a 1 kHz tone at -12 dBFS over the render (the console's tone) */
 uint32_t cp_audio_out_peak(void);              /* the loudest 16-bit sample sent to the speaker since the last call */
+void cp_audio_fx_get(cp_fx_params_t *p);       /* the speaker chain (cp_audio_fx.h); set: from the next block on */
+void cp_audio_fx_set(const cp_fx_params_t *p);
 
 /* pure: in = interleaved stereo int32 (+-8,388,608), out = interleaved stereo int16 (the mono mix twice) */
 void cp_audio_convert(const int32_t *in, int16_t *out, uint32_t frames, uint32_t trim_q12);

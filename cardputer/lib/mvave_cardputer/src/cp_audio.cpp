@@ -17,6 +17,9 @@ static int32_t blk[2u * CP_AUDIO_MAX_BLOCK];
 static int16_t pcm[2u * CP_AUDIO_MAX_BLOCK];
 static volatile uint32_t tone_left, out_peak;
 static uint32_t tone_ph;
+static cp_fx_t fx;                                     // the speaker chain
+static cp_fx_params_t fx_p = {1, 180.0f, 0.6f, -1.0f};   // cp_fx_defaults
+static volatile int fx_dirty = 1;
 
 static void audio_task(void *)
 {
@@ -41,7 +44,11 @@ static void audio_task(void *)
             }
             tone_left = tone_left > block ? tone_left - block : 0u;
         }
-        cp_audio_convert(blk, pcm, block, trim);
+        if (fx_dirty) {
+            fx_dirty = 0;
+            cp_fx_init(&fx, (float)rate, &fx_p);
+        }
+        cp_fx_process(&fx, blk, pcm, block, trim);
         for (uint32_t i = 0; i < 2u * block; i += 2u) {   // the level that reaches the speaker
             uint32_t a = (uint32_t)(pcm[i] < 0 ? -pcm[i] : pcm[i]);
             if (a > out_peak)
@@ -111,6 +118,12 @@ extern "C" uint32_t cp_audio_last_us(void) { return last_us; }
 extern "C" uint32_t cp_audio_blocks(void) { return blocks; }
 
 extern "C" void cp_audio_test_tone(uint32_t ms) { tone_left = ms * (rate ? rate : 44100u) / 1000u; }
+extern "C" void cp_audio_fx_get(cp_fx_params_t *p) { *p = fx_p; }
+extern "C" void cp_audio_fx_set(const cp_fx_params_t *p)
+{
+    fx_p = *p;
+    fx_dirty = 1;
+}
 extern "C" uint32_t cp_audio_out_peak(void)
 {
     uint32_t p = out_peak;

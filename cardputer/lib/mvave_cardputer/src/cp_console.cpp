@@ -82,6 +82,32 @@ static void cmd_gain(const char *args)
     cp_console_printf("gain x%lu (gain 1..16)\n", (unsigned long)(cp_audio_trim_q12() / 4096u));
 }
 
+static void cmd_snd(const char *args)            // the speaker chain: snd [on|off] [hp HZ] [bass 0..2] [ceil DB]
+{
+    cp_fx_params_t p;
+    cp_audio_fx_get(&p);
+    const char *a = args;
+    while (a && *a) {
+        while (*a == ' ')
+            a++;
+        if (!strncmp(a, "on", 2) && (a[2] == ' ' || !a[2]))
+            p.on = 1, a += 2;
+        else if (!strncmp(a, "off", 3))
+            p.on = 0, a += 3;
+        else if (!strncmp(a, "hp ", 3))
+            p.hp_hz = constrain(strtof(a + 3, (char **)&a), 60.0f, 400.0f);
+        else if (!strncmp(a, "bass ", 5))
+            p.bass = constrain(strtof(a + 5, (char **)&a), 0.0f, 2.0f);
+        else if (!strncmp(a, "ceil ", 5))
+            p.ceil_db = constrain(strtof(a + 5, (char **)&a), -12.0f, 0.0f);
+        else
+            break;
+    }
+    cp_audio_fx_set(&p);
+    cp_console_printf("snd %s hp %d Hz, bass %.2f, ceil %.1f dB (snd on|off, hp 60..400, bass 0..2, ceil -12..0)\n",
+                      p.on ? "on" : "off", (int)p.hp_hz, (double)p.bass, (double)p.ceil_db);
+}
+
 extern "C" int cp_console_register(const char *name, cp_cmd_fn fn)
 {
     if (ncmd >= 16u)
@@ -102,6 +128,7 @@ extern "C" void cp_console_init(void)
         cp_console_register("tone", cmd_tone);
         cp_console_register("level", cmd_level);
         cp_console_register("gain", cmd_gain);
+        cp_console_register("snd", cmd_snd);
     }
 }
 
@@ -116,7 +143,7 @@ extern "C" void cp_console_line(const char *l)
         }
     }
     if (*l)
-        cp_console_printf("? %s (cp heap keys shot tone level gain", l);
+        cp_console_printf("? %s (cp heap keys shot tone level gain snd", l);
     if (*l) {
         for (i = 7; i < ncmd; i++)
             cp_console_printf(" %s", cmds[i].name);
